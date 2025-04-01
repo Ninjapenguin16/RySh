@@ -11,6 +11,9 @@
 #include <vector>
 #include <sstream>
 #include <sys/wait.h>
+#include <pwd.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 
 namespace fs = std::filesystem;
 
@@ -18,13 +21,15 @@ std::unordered_map<std::string, std::string> EnvVars;
 std::vector<std::string> PATH;
 
 std::string prompt() {
-    std::string Ret = "";
-    do {
-        std::cout << "RySh > ";
-        std::getline(std::cin, Ret);
-    } while(Ret.empty());
-    return Ret;
+    char* input = readline("RySh > "); // `readline()` waits for input
+    if(!input) {
+        return ""; // Handle EOF (Ctrl+D)
+    }
+    std::string result = input;
+    free(input); // `readline()` allocates memory, free it
+    return result;
 }
+
 
 bool fileExists(std::string FilePath) {
     return fs::exists(FilePath);
@@ -41,7 +46,13 @@ std::string findBin(std::string BinToFind) {
 }
 
 void readEnvVars() {
-    EnvVars["PATH"] = secure_getenv("PATH");
+    const char* pathEnv = secure_getenv("PATH");
+    if(pathEnv) {
+        EnvVars["PATH"] = pathEnv;
+    }
+    else {
+        EnvVars["PATH"] = "/usr/bin:/bin"; // Set a safe fallback
+    }
     std::stringstream ss(EnvVars["PATH"]);
     std::string token = "";
     while(std::getline(ss, token, ':')) {
@@ -101,7 +112,20 @@ int main() {
 
         LineSplit = splitString(Line, ' ');
 
-        Args = StrVecToCArr(LineSplit);
+        // Handle built-in `cd` command
+        if(LineSplit[0] == "cd") {
+            if(LineSplit.size() < 2) {
+                if(chdir(getpwuid(getuid())->pw_dir) != 0) {
+                    perror("cd failed");
+                }
+            }
+            else {
+                if(chdir(LineSplit[1].c_str()) != 0) {
+                    perror("cd failed");
+                }
+            }
+            continue;
+        }
         
         std::string BinPath = findBin(LineSplit[0]);
 
@@ -109,6 +133,8 @@ int main() {
             std::cout << "Command \"" << LineSplit[0] << "\" not found" << '\n';
             continue;
         }
+
+        Args = StrVecToCArr(LineSplit);
 
         //std::cout << BinPath << '\n';
         pid_t pid = fork();
