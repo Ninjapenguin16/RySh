@@ -40,6 +40,23 @@ bool fileExists(std::string FilePath) {
 }
 
 std::string findBin(std::string BinToFind) {
+    // Check if path specified
+    if(BinToFind.find('/') != std::string::npos) {
+        if(BinToFind[0] == '.') {
+            char* CurPath = getcwd(NULL, 0);
+            fs::path fullPath = fs::path(CurPath) / BinToFind.substr(2);
+            if(fs::exists(fullPath)) {
+                return fullPath.string();
+            }
+            return "";
+        }
+        if(fs::exists(fs::path(BinToFind))) {
+            return BinToFind;
+        }
+        return "";
+    }
+
+    // Look in PATH variable
     for(const std::string& dir : PATH) {
         fs::path fullPath = fs::path(dir) / BinToFind;
         if(fs::exists(fullPath)) {
