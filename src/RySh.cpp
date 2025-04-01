@@ -21,10 +21,14 @@ std::unordered_map<std::string, std::string> EnvVars;
 std::vector<std::string> PATH;
 
 std::string prompt() {
-    char* input = readline("RySh > "); // `readline()` waits for input
-    if(!input) {
-        return ""; // Handle EOF (Ctrl+D)
-    }
+    char* input = nullptr;
+    do {
+        input = readline("RySh > "); // `readline()` waits for input
+        if(!input) {
+            return ""; // Handle EOF (Ctrl+D)
+        }
+    } while(input[0] == '\0');
+
     std::string result = input;
     free(input); // `readline()` allocates memory, free it
     return result;
@@ -105,6 +109,10 @@ int main() {
         }
 
         Line = prompt();
+
+        if(Line.empty()) {
+            break;
+        }
 
         if(Line == "exit") {
             break;

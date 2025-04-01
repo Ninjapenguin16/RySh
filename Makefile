@@ -18,4 +18,7 @@ $(BUILD_DIR):
 clean:
 	rm -rf $(BUILD_DIR)
 
+run:
+	$(BUILD_DIR)/RySh
+
 .PHONY: clean
