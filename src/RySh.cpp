@@ -14,6 +14,7 @@
 #include <pwd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
+#include <cstring>
 
 namespace fs = std::filesystem;
 
@@ -22,12 +23,19 @@ std::vector<std::string> PATH;
 
 std::string prompt() {
     char* input = nullptr;
+    std::string Prompt = "RySh:";
+    Prompt += getcwd(NULL, 0);
+    Prompt += "> ";
     do {
-        input = readline("RySh > "); // `readline()` waits for input
+        input = readline(Prompt.c_str()); // `readline()` waits for input
         if(!input) {
             return ""; // Handle EOF (Ctrl+D)
         }
     } while(input[0] == '\0');
+
+    if(*input) {  // Non-empty input
+        add_history(input);  // History makes a copy
+    }
 
     std::string result = input;
     free(input); // `readline()` allocates memory, free it
@@ -110,6 +118,21 @@ char** StrVecToCArr(std::vector<std::string> Vec) {
     Ret[VecLen] = NULL;
 
     return Ret;
+}
+
+std::vector<std::string> ExpandPrompt(std::string Input) {
+    // find '"' characters and merge into one element
+    // split based on spaces
+    // expand '~' into user home
+    // escape special characters with '/'
+
+    std::stringbuf CurEntry;
+
+    for(size_t i = 0; i < Input.size(); i++) {
+
+    }
+
+    return std::vector<std::string>();
 }
 
 int main() {
