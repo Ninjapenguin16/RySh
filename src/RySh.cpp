@@ -120,19 +120,115 @@ char** StrVecToCArr(std::vector<std::string> Vec) {
     return Ret;
 }
 
+std::string ExpandVariables(const std::string& input) {
+    std::string output;
+    for(size_t i=0; i<input.length(); ++i) {
+        if(input[i] == '$') {
+            size_t start = i + 1;
+            size_t j = start;
+
+            while(j < input.length() && (std::isalnum(input[j]) || input[j] == '_')) {
+                ++j;
+            }
+
+            std::string var = input.substr(start, j - start);
+            const char* val = getenv(var.c_str());
+
+            if(val) output += val;
+            // else nothing (empty string)
+
+            i = j - 1; // continue after the variable
+        }
+        else {
+            output += input[i];
+        }
+    }
+    return output;
+}
+
 std::vector<std::string> ExpandPrompt(std::string Input) {
-    // find '"' characters and merge into one element
-    // split based on spaces
-    // expand '~' into user home
-    // escape special characters with '/'
+    std::vector<std::pair<std::string, bool>> parsed;
+    std::string token;
+    bool in_quotes = false;
+    bool escape = false;
 
-    std::stringbuf CurEntry;
+    for(size_t i=0; i<Input.length(); ++i) {
+        char c = Input[i];
 
-    for(size_t i = 0; i < Input.size(); i++) {
-
+        if(escape) {
+            token += c;
+            escape = false;
+        }
+        else if(c == '\\') {
+            if(in_quotes) token += '\\';
+            else escape = true;
+        }
+        else if(c == '"') {
+            if(in_quotes && !escape) {
+                in_quotes = false;
+                parsed.emplace_back(token, true);
+                token.clear();
+            }
+            else if(!in_quotes) {
+                in_quotes = true;
+            }
+            else {
+                token += c;
+            }
+        }
+        else if(std::isspace(c) && !in_quotes) {
+            if(!token.empty()) {
+                parsed.emplace_back(token, false);
+                token.clear();
+            }
+        }
+        else {
+            token += c;
+        }
     }
 
-    return std::vector<std::string>();
+    if(in_quotes) {
+        throw std::runtime_error("Unclosed quote detected");
+    }
+    if(escape) {
+        throw std::runtime_error("Trailing escape character");
+    }
+    if(!token.empty()) {
+        parsed.emplace_back(token, false);
+    }
+
+    std::vector<std::string> result;
+    for(auto& [arg, was_quoted] : parsed) {
+        // Expand ~
+        if(!arg.empty() && arg[0] == '~') {
+            if(arg.size() == 1 || arg[1] == '/') {
+                const char* home = getpwuid(getuid())->pw_dir;
+                if(home) {
+                    arg = std::string(home) + arg.substr(1);
+                }
+            }
+        }
+
+        // Expand $VAR
+        arg = ExpandVariables(arg);
+
+        // Escape if not quoted
+        if(!was_quoted) {
+            std::string escaped;
+            for(char c : arg) {
+                if(c == ' ' || c == '\\' || c == '"' || c == '\'' || c == '`' ||
+                   c == '$' || c == '&' || c == '|' || c == ';') {
+                    escaped += '\\';
+                }
+                escaped += c;
+            }
+            arg = escaped;
+        }
+
+        result.push_back(arg);
+    }
+
+    return result;
 }
 
 int main() {
@@ -158,7 +254,9 @@ int main() {
             break;
         }
 
-        LineSplit = splitString(Line, ' ');
+        //LineSplit = splitString(Line, ' ');
+
+        LineSplit = ExpandPrompt(Line);
 
         // Handle built-in `cd` command
         if(LineSplit[0] == "cd") {
